@@ -39,6 +39,8 @@ public class GamepadHandlerFrameLooper {
     private AxisID axisID;
     private float min, max;
     
+    boolean canProceed;
+    
     
     // Variables used to create a ControllerReader object.
     private Axis lxaxis, lyaxis, rxaxis, ryaxis, ltaxis, rtaxis;
@@ -58,6 +60,7 @@ public class GamepadHandlerFrameLooper {
         axisID = null;
         min = 0;
         max = 0;
+        canProceed = true;
     }
     
     public boolean frame() {
@@ -90,10 +93,33 @@ public class GamepadHandlerFrameLooper {
 
                     break;
                 
+                // This is when the user must hold one of the sticks to the top-right.
+                // At this stage, the lxaxis, lyaxis, rxaxis and ryaxis object should already be defined.
+                // Though they may have to be redefined to reverse their orientation.
+                    
+                // For reliability, it is assumed that each axis can vary independently across its full range,
+                // And so the maximum magnitude is actually root 2. Checking for a magnitude greater than 1
+                // Ensures that the user is not pointing the stick in one of the four cardinal directions.
+                // I tried a threshold of 1.2 but this did not work.
                 case 3:
+                    if (canProceed) {
+                        message("Release and press SPACE to continue.");
+                    } else {
+                        message(instruction(stage));
+                        float mag = (float)Math.sqrt(Math.pow(lxaxis.value(-1, 1),2) + Math.pow(lyaxis.value(-1, 1), 2));
+                        if(mag > 1.1)
+                            canProceed = true;
+                    }
+                    break;
                 case 6:
-                    // This is when the user must hold one of the sticks to the top-right.
-                    message(instruction(stage));
+                    if (canProceed) {
+                        message("Release and press SPACE to continue.");
+                    } else {
+                        message(instruction(stage));
+                        float mag = (float)Math.sqrt(Math.pow(rxaxis.value(-1, 1),2) + Math.pow(ryaxis.value(-1, 1), 2));
+                        if(mag > 1.1)
+                            canProceed = true;
+                    }
                     break;
                 case 9:
                     message(instruction(stage));
@@ -104,18 +130,26 @@ public class GamepadHandlerFrameLooper {
             }
         
         
-        if (spaceTracker.isFreshlyPressed()) {
+        if (canProceed && spaceTracker.isFreshlyPressed()) {
             if (stage > 9)
                 return false;
+            
+            
             updateControllerConfig(stage);
             resetAxesMinMax();
             stage++;
+            
+            if (stage == 3 || stage == 6)
+                canProceed = false;
             
         }
                 
         } catch (NoControllerException ex) {
             message("No controller found.");
-        }   
+        } catch (NoSuchAxisException ex) {
+            message("A problem occurred.");
+            return false;
+        }
         // Returns true if it should should keep running
         return true;
     }
