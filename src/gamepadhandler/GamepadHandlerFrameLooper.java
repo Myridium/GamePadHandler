@@ -279,21 +279,21 @@ public class GamepadHandlerFrameLooper {
                     // The user has just held the joystick to the top-right.
                     avX = AxesMinMax.get(lxaxis.getAxisID())[0] + AxesMinMax.get(lxaxis.getAxisID())[1];
                     avX/=2;
-                    avXExisting = lxaxis.getMin() + lxaxis.getMax();
+                    avXExisting = lxaxis.getRawMin() + lxaxis.getRawMax();
                     avXExisting/=2;
                     
                     avY = AxesMinMax.get(lyaxis.getAxisID())[0] + AxesMinMax.get(lyaxis.getAxisID())[1];
                     avY/=2;
-                    avYExisting = lyaxis.getMin() + lyaxis.getMax();
+                    avYExisting = lyaxis.getRawMin() + lyaxis.getRawMax();
                     avYExisting/=2;
                     
                     if (avX - avXExisting < 0) {
                         // Axis is reversed
-                        lxaxis = new Axis(lxaxis.getControllerID(),lxaxis.getAxisID(),lxaxis.getMax(),lxaxis.getMin());
+                        lxaxis = new Axis(lxaxis.getControllerID(),lxaxis.getAxisID(),lxaxis.getRawMax(),lxaxis.getRawMin());
                     }
                     if (avY - avYExisting < 0) {
                         // Axis is reversed
-                        lyaxis = new Axis(lyaxis.getControllerID(),lyaxis.getAxisID(),lyaxis.getMax(),lyaxis.getMin());
+                        lyaxis = new Axis(lyaxis.getControllerID(),lyaxis.getAxisID(),lyaxis.getRawMax(),lyaxis.getRawMin());
                     }
                     
                     break;
@@ -308,21 +308,21 @@ public class GamepadHandlerFrameLooper {
                     // The user has just held the joystick to the top-right.
                     avX = AxesMinMax.get(rxaxis.getAxisID())[0] + AxesMinMax.get(rxaxis.getAxisID())[1];
                     avX/=2;
-                    avXExisting = rxaxis.getMin() + rxaxis.getMax();
+                    avXExisting = rxaxis.getRawMin() + rxaxis.getRawMax();
                     avXExisting/=2;
                     
                     avY = AxesMinMax.get(ryaxis.getAxisID())[0] + AxesMinMax.get(ryaxis.getAxisID())[1];
                     avY/=2;
-                    avYExisting = ryaxis.getMin() + ryaxis.getMax();
+                    avYExisting = ryaxis.getRawMin() + ryaxis.getRawMax();
                     avYExisting/=2;
                     
                     if (avX - avXExisting < 0) {
                         // Axis is reversed
-                        rxaxis = new Axis(rxaxis.getControllerID(),rxaxis.getAxisID(),rxaxis.getMax(),rxaxis.getMin());
+                        rxaxis = new Axis(rxaxis.getControllerID(),rxaxis.getAxisID(),rxaxis.getRawMax(),rxaxis.getRawMin());
                     }
                     if (avY - avYExisting < 0) {
                         // Axis is reversed
-                        ryaxis = new Axis(ryaxis.getControllerID(),ryaxis.getAxisID(),ryaxis.getMax(),ryaxis.getMin());
+                        ryaxis = new Axis(ryaxis.getControllerID(),ryaxis.getAxisID(),ryaxis.getRawMax(),ryaxis.getRawMin());
                     }
                     break;
                 case 7:
