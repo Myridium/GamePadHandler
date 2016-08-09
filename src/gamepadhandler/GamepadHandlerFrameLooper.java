@@ -12,7 +12,6 @@ import LWJGLTools.input.KeyTracker;
 import java.awt.Color;
 import java.io.File;
 import java.net.URISyntaxException;
-import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map.Entry;
 import java.util.logging.Level;
@@ -29,7 +28,7 @@ public class GamepadHandlerFrameLooper {
     private int HEIGHT;
     private long WINDOW;
     
-    private int stage;
+    private STAGE stage;
     private KeyTracker spaceTracker;
     
     private ControllerReader cr;
@@ -41,6 +40,7 @@ public class GamepadHandlerFrameLooper {
     private float min, max;
     
     // The button being pressed
+    private ButtonID lastbid;
     private ButtonID bid;
     
     boolean APressed;
@@ -49,14 +49,13 @@ public class GamepadHandlerFrameLooper {
     
     // Variables used to create a ControllerReader object.
     private Axis lxaxis, lyaxis, rxaxis, ryaxis, ltaxis, rtaxis;
-    private boolean ltreverse, rtreverse;
     
     public void init(long window, int width, int height) {
         WINDOW = window;
         WIDTH = width;
         HEIGHT = height;
         
-        stage = 0;
+        stage = STAGE.BEGIN;
         spaceTracker = new KeyTracker(WINDOW,GLFW_KEY_SPACE);
         cr = new ControllerReader();
         AxesMinMax = new HashMap<>();
@@ -76,32 +75,34 @@ public class GamepadHandlerFrameLooper {
         try {
             updateAxes();
             
-            boolean AFreshlyPressed;
-            if (APressed) {
-                AFreshlyPressed = false;
-                updateAPress();
-            } else {
-                AFreshlyPressed = updateAPress();
-            }
-        
             switch(stage) {
-                case 0:
-                    message(instruction(stage));
-                    break;
-                case 1:
+                case BEGIN:
                     message(instruction(stage));
                     updateButton();
-                    if (bid != null) {
-                        canProceed = true;
-                        AFreshlyPressed = true;
+                    if (buttonFreshlyPressed()) {
+                        forceAdvance();
                     }
                     break;
-                case 2:
-                case 3:
-                case 5:
-                case 6:
-                case 8:
-                case 9:
+                case A:
+                case B:
+                case X:
+                case Y:
+                case START:
+                case SELECT:
+                case LB:
+                case RB:
+                    message(instruction(stage));
+                    updateButton();
+                    if (buttonFreshlyPressed()) {
+                        forceAdvance();
+                    }
+                    break;
+                case LSTICKX:
+                case LSTICKY:
+                case RSTICKX:
+                case RSTICKY:
+                case LTRIG:
+                case RTRIG:
                     axisID = findUserAxis();
 
                     if (axisID == null) {
@@ -125,7 +126,7 @@ public class GamepadHandlerFrameLooper {
                 // And so the maximum magnitude is actually root 2. Checking for a magnitude greater than 1
                 // Ensures that the user is not pointing the stick in one of the four cardinal directions.
                 // I tried a threshold of 1.2 but this did not work.
-                case 4:
+                case LSTICKDIAG:
                     if (canProceed) {
                         message("Release stick and continue.");
                     } else {
@@ -135,7 +136,7 @@ public class GamepadHandlerFrameLooper {
                             canProceed = true;
                     }
                     break;
-                case 7:
+                case RSTICKDIAG:
                     if (canProceed) {
                         message("Release stick and continue.");
                     } else {
@@ -145,30 +146,21 @@ public class GamepadHandlerFrameLooper {
                             canProceed = true;
                     }
                     break;
-                case 10:
+                case WRITEXML:
                     message(instruction(stage));
                     canProceed = true;
                     break;
-                default:
+                case END:
                     message("Done.");
                     canProceed = true;
                     break;
+                default:
+                    break;
             }
         
-        if (canProceed && 
-                (spaceTracker.isFreshlyPressed() || AFreshlyPressed)
-                ) {
-            if (stage > 10)
-                return false;
-            
-            
-            updateControllerConfig(stage);
-            resetAxesMinMax();
-            stage++;
-            
-            canProceed = false;
-            
-        }
+            if (shouldAdvance()) {
+                return forceAdvance();
+            }
                 
         } catch (NoControllerException ex) {
             message("No controller found.");
@@ -176,25 +168,67 @@ public class GamepadHandlerFrameLooper {
             message("A problem occurred.");
             return false;
         }
-        // Returns true if it should should keep running
+        
         return true;
+    }
+    
+    private boolean shouldAdvance() {boolean AFreshlyPressed;
+            
+        if (APressed) {
+            AFreshlyPressed = false;
+            updateAPress();
+        } else {
+            AFreshlyPressed = updateAPress();
+        }
+        return canProceed && 
+                (spaceTracker.isFreshlyPressed() || AFreshlyPressed);
+                
+    }
+    
+    // Returns true if we have more steps to go.
+    private boolean forceAdvance() throws NoControllerException {
+        
+            if (stage == STAGE.END)
+                return false;
+            
+            
+            updateControllerConfig(stage);
+            resetAxesMinMax();
+            stage = stage.next();
+            
+            canProceed = false;
+            return true;
     }
     
     private void footer() {
         GLDrawHelper.setColor(Color.WHITE);
-        /*
-        if (stage < 1) {
-            GLDrawHelper.drawString(WIDTH/2-250, 50, "Press SPACE to advance.", 4);
-        } else {
-            GLDrawHelper.drawString(WIDTH/2-250, 50, "Press SPACE or A button to advance.", 4);
-        }
-        */
         
-        if (stage < 1) {
-            GLDrawHelper.drawString(WIDTH/2, 50, "Press SPACE to advance.", 4, GLDrawHelper.TextAlignment.MIDDLE_TOP);
-        } else {
-            GLDrawHelper.drawString(WIDTH/2, 50, "Press SPACE or A button to advance.", 4, GLDrawHelper.TextAlignment.MIDDLE_TOP);
+        String msg;
+        
+        switch (stage) {
+            case BEGIN:
+                msg = "Press any gamepad button to advance.";
+                break;
+            case LSTICKX:
+            case LSTICKY:
+            case RSTICKX:
+            case RSTICKY:
+            case LSTICKDIAG:
+            case RSTICKDIAG:
+            case LTRIG:
+            case RTRIG:
+            case WRITEXML:
+                msg = "Press A button to advance.";
+                break;
+            case END:
+                msg = "Press A button to quit.";
+                break;
+            default:
+                msg = "";
+                break;
         }
+        
+        GLDrawHelper.drawString(WIDTH/2, 50, msg, 4, GLDrawHelper.TextAlignment.MIDDLE_TOP);
     }
     
     private void message(String s) {
@@ -203,32 +237,48 @@ public class GamepadHandlerFrameLooper {
         GLDrawHelper.drawString(WIDTH/2, HEIGHT/2+100, s, size,GLDrawHelper.TextAlignment.MIDDLE_TOP);
     }
     
-    private String instruction(int st) {
+    private String instruction(STAGE st) {
         switch(st) {
-            case 0:
+            case BEGIN:
                 return "Release all controls.";
-            case 1:
+            case A:
                 return "Press the A button.";
-            case 2:
+            case B:
+                return "Press the B button.";
+            case X:
+                return "Press the X button.";
+            case Y:
+                return "Press the Y button.";
+            case SELECT:
+                return "Press the SELECT button.";
+            case START:
+                return "Press the START button.";
+            case LB:
+                return "Press the LB button.";
+            case RB:
+                return "Press the RB button.";
+            case LSTICKX:
                 return "Move the left stick through its full horizontal range.";
-            case 3:
+            case LSTICKY:
                 return "Move the left stick through its full vertical range.";
-            case 4:
+            case LSTICKDIAG:
                 return "Move the left stick diagonally to the top-right.";
-            case 5:
+            case RSTICKX:
                 return "Move the right stick through its full horizontal range.";
-            case 6:
+            case RSTICKY:
                 return "Move the right stick through its full vertical range.";
-            case 7:
+            case RSTICKDIAG:
                 return "Move the right stick diagonally to the top-right.";
-            case 8:
+            case LTRIG:
                 return "Fully press and release the left trigger several times.";
-            case 9:
+            case RTRIG:
                 return "Fully press and release the right trigger several times.";
-            case 10:
+            case WRITEXML:
                 return "Continue to create the configuration file.";
-            default:
+            case END:
                 return "Done.";
+            default:
+                return "You shouldn't be here.";
         }
     }
     
@@ -284,13 +334,24 @@ public class GamepadHandlerFrameLooper {
         AxesMinMax = new HashMap<AxisID, Float[]>();
     }
     
+    private boolean buttonFreshlyPressed() {
+        if (lastbid != null)
+            return false;
+        return (bid != null);
+    }
+    
     private void updateButton() throws NoControllerException {
+        
+        lastbid = bid;
+        bid = null;
+        
         ControllerID cid = ControllerReader.ControllerID.ONE;
         
         for (ButtonID BID : ControllerReader.ButtonID.values()) {
             try {
                 if (ControllerReader.isRawButtonPressed(cid, BID)) {
                     bid = BID;
+                    return;
                 }
             } catch (NoSuchButtonException ex) {
                 continue;
@@ -316,12 +377,13 @@ public class GamepadHandlerFrameLooper {
         return axis;
     }
     
-    private void updateControllerConfig(int stageCompleted) throws NoControllerException {
+    private void updateControllerConfig(STAGE stageCompleted) throws NoControllerException {
         
             float avX, avY, avXExisting, avYExisting, avTrig;
+            ButtonContainer bc = new ButtonContainer(ControllerID.ONE, bid);
                     
             switch(stageCompleted) {
-                case 0:
+                case BEGIN:
                     for (AxisID aid : AxisID.values()) {
                         float rawValue;
 
@@ -335,17 +397,37 @@ public class GamepadHandlerFrameLooper {
 
                     }
                     break;
-                case 1:
-                    ButtonContainer bc = new ButtonContainer(ControllerID.ONE, bid);
+                case A:
                     cr.setButton(Button.A, bc);
                     break;
-                case 2:
+                case B:
+                    cr.setButton(Button.B, bc);
+                    break;
+                case X:
+                    cr.setButton(Button.X, bc);
+                    break;
+                case Y:
+                    cr.setButton(Button.Y, bc);
+                    break;
+                case START:
+                    cr.setButton(Button.START, bc);
+                    break;
+                case SELECT:
+                    cr.setButton(Button.SELECT, bc);
+                    break;
+                case LB:
+                    cr.setButton(Button.LB, bc);
+                    break;
+                case RB:
+                    cr.setButton(Button.RB, bc);
+                    break;
+                case LSTICKX:
                     lxaxis = new Axis(ControllerReader.ControllerID.ONE, axisID,min,max);
                     break;
-                case 3:
+                case LSTICKY:
                     lyaxis = new Axis(ControllerReader.ControllerID.ONE, axisID,min,max);
                     break;
-                case 4:
+                case LSTICKDIAG:
                     // The user has just held the joystick to the top-right.
                     avX = AxesMinMax.get(lxaxis.getAxisID())[0] + AxesMinMax.get(lxaxis.getAxisID())[1];
                     avX/=2;
@@ -367,13 +449,13 @@ public class GamepadHandlerFrameLooper {
                     }
                     
                     break;
-                case 5:
+                case RSTICKX:
                     rxaxis = new Axis(ControllerReader.ControllerID.ONE, axisID,min,max);
                     break;
-                case 6:
+                case RSTICKY:
                     ryaxis = new Axis(ControllerReader.ControllerID.ONE, axisID,min,max);
                     break;
-                case 7:
+                case RSTICKDIAG:
                     
                     // The user has just held the joystick to the top-right.
                     avX = AxesMinMax.get(rxaxis.getAxisID())[0] + AxesMinMax.get(rxaxis.getAxisID())[1];
@@ -395,7 +477,7 @@ public class GamepadHandlerFrameLooper {
                         ryaxis = new Axis(ryaxis.getControllerID(),ryaxis.getAxisID(),ryaxis.getRawMax(),ryaxis.getRawMin());
                     }
                     break;
-                case 8:
+                case LTRIG:
                     avTrig = (min + max)/2;
                     if (avTrig > AxesNeutral.get(axisID)) {
                         ltaxis = new Axis(ControllerReader.ControllerID.ONE, axisID, min, max);
@@ -403,7 +485,7 @@ public class GamepadHandlerFrameLooper {
                         ltaxis = new Axis(ControllerReader.ControllerID.ONE, axisID, max, min);
                     }
                     break;
-                case 9:
+                case RTRIG:
                     avTrig = (min + max)/2;
                     if (avTrig > AxesNeutral.get(axisID)) {
                         rtaxis = new Axis(ControllerReader.ControllerID.ONE, axisID, min, max);
@@ -411,7 +493,7 @@ public class GamepadHandlerFrameLooper {
                         rtaxis = new Axis(ControllerReader.ControllerID.ONE, axisID, max, min);
                     }
                     break;
-                case 10:
+                case WRITEXML:
                     // Now we must create the configuration file.
                     cr.setJoystickAxes(Joystick.LEFT, lxaxis, lyaxis);
                     cr.setJoystickAxes(Joystick.RIGHT, rxaxis, ryaxis);
@@ -430,9 +512,40 @@ public class GamepadHandlerFrameLooper {
                 }
             }
                     break;
+                case END:
+                    break;
                 default:
                     break;
             }
             
+    }
+    
+    public enum STAGE {
+        // This program will break if A is shifted to something after the start.
+        // This is because the A button is used to advance the prompts after it is set.
+        BEGIN,
+        A,
+        B,
+        X,
+        Y,
+        START,
+        SELECT,
+        LB,
+        RB,
+        LSTICKX,
+        LSTICKY,
+        LSTICKDIAG,
+        RSTICKX,
+        RSTICKY,
+        RSTICKDIAG,
+        LTRIG,
+        RTRIG,
+        WRITEXML,
+        END;
+        
+        public STAGE next() {
+            return STAGE.values()[Math.min(this.ordinal()+1, STAGE.values().length-1)];
+        }
+        
     }
 }
